@@ -1,0 +1,28 @@
+[project]
+name = "vide"
+version = "0.1.0"
+description = "A video editing utility"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.4.2",
+    "ffmpeg-python>=0.2.0",
+    "replicate>=1.0.7",
+    "scenedetect[opencv]>=0.6.4",
+]
+
+[project.scripts]
+vide = "vide.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vide"]
+
+[dependency-groups]
+dev = [
+    "shibuya>=2026.7.12",
+    "sphinx>=9.1.0",
+]
