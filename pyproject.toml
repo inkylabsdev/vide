@@ -1,5 +1,5 @@
 [project]
-name = "vide"
+name = "vide-python"
 version = "0.1.0"
 description = "A video editing utility"
 readme = "README.md"
