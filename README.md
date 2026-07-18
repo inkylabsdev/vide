@@ -19,9 +19,9 @@ re-encoding on the merge side.
 ## Installation
 
 ```console
-$ uv tool install vide
+$ uv tool install vide-python
 # or
-$ pip install vide
+$ pip install vide-python
 ```
 
 ## Usage
