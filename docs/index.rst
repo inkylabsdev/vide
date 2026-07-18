@@ -16,3 +16,5 @@ Commands
    commands/split-scenes
    commands/merge-scenes
    commands/convert-depth-video
+   commands/extract-audio
+   commands/remove-audio

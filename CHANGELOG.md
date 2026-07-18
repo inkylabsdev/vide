@@ -2,6 +2,7 @@
 
 ## v0.2.0
 
+* feat: add extract-audio and remove-audio commands.
 * feat: add convert-depth-video command.
 * neat: add ci and pypi publish.
 
