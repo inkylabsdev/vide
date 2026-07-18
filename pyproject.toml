@@ -23,6 +23,7 @@ packages = ["vide"]
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.1",
     "shibuya>=2026.7.12",
     "sphinx>=9.1.0",
 ]
