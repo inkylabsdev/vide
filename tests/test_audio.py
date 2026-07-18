@@ -88,6 +88,19 @@ def test_extract_audio_unknown_codec_falls_back_to_mka(tmp_path, monkeypatch):
 
 
 @needs_ffmpeg
+def test_extract_audio_reencodes_when_container_cannot_copy(tmp_path):
+    video = tmp_path / "clip.mp4"
+    make_video(video)  # aac audio; .mp3 can't hold it via stream copy
+    output = tmp_path / "sound.mp3"
+
+    result = CliRunner().invoke(cli, ["extract-audio", str(video), "-o", str(output)])
+
+    assert result.exit_code == 0, result.output
+    assert "Re-encoded" in result.output
+    assert audio_codecs(output) == ["mp3"]
+
+
+@needs_ffmpeg
 def test_extract_audio_no_audio_track(tmp_path):
     video = tmp_path / "silent.mp4"
     make_video(video, acodec=None)

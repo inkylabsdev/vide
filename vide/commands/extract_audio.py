@@ -35,14 +35,19 @@ def cli(video: Path, output: Path | None):
     if audio is None:
         raise click.ClickException(f"{video} has no audio track")
 
+    codec = audio["codec_name"]
     if output is None:
-        ext = CODEC_EXTENSIONS.get(audio["codec_name"], ".mka")
-        output = Path.cwd() / f"{video.stem}{ext}"
+        output = Path.cwd() / f"{video.stem}{CODEC_EXTENSIONS.get(codec, '.mka')}"
 
+    # Stream-copy only when the target container can hold the source codec
+    # (e.g. AAC won't fit in .mp3); otherwise let ffmpeg re-encode to the
+    # container's default codec.
+    copy = output.suffix in (CODEC_EXTENSIONS.get(codec), ".mka")
     (
         ffmpeg.input(str(video))
-        .audio.output(str(output), acodec="copy")
+        .audio.output(str(output), **({"acodec": "copy"} if copy else {}))
         .overwrite_output()
         .run()
     )
-    click.echo(f"Extracted {audio['codec_name']} audio to {output}")
+    verb = "Extracted" if copy else "Re-encoded"
+    click.echo(f"{verb} {codec} audio to {output}")

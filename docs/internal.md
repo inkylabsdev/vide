@@ -22,9 +22,12 @@ would race with ffmpeg opening it on some platforms.
 
 ## extract-audio
 
-Stream copy only, no re-encode path. The one decision is the default
-output extension: probe the codec and map it to a container that holds it
-(`CODEC_EXTENSIONS`), falling back to `.mka` — Matroska holds anything.
+Probes the codec and maps it to a container that holds it
+(`CODEC_EXTENSIONS`) for the default output name, falling back to `.mka`
+— Matroska holds anything. Stream-copies when the target container can
+hold the source codec, re-encodes (ffmpeg's default codec for the
+container) when it can't — copying AAC into `.mp3` is impossible, and
+failing on it just pushes the codec/container matrix onto the user.
 A video with no audio stream is an error, not a silent no-op.
 
 ## remove-audio

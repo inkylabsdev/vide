@@ -32,10 +32,10 @@ Options
 Notes
 -----
 
-The audio stream is copied bit-for-bit — instant and lossless — but that
-means the output container must be able to hold the codec. The default
-output name always is; if you pass ``--output`` yourself, pick an
-extension that matches the codec.
+When the output container can hold the source codec (always true for the
+default output name), the audio stream is copied bit-for-bit — instant
+and lossless. When it can't (e.g. extracting AAC audio to ``.mp3``), the
+audio is re-encoded to the container's default codec instead.
 
 A video with no audio track is an error.
 
