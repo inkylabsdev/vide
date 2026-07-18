@@ -11,3 +11,6 @@ wheels/
 
 # Sphinx
 docs/_build/
+
+# Coverage
+.coverage
