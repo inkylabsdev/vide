@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="violet" data-content_root="../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>merge-scenes - vide</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="convert-depth-video" href="convert-depth-video.html" /><link rel="prev" title="split-scenes" href="split-scenes.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>remove-audio - vide</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="extract-audio" href="extract-audio.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=e1a1ceaf" />
@@ -18,7 +18,7 @@
 }
 </style>
     
-  <meta property="og:type" content="website"/><meta property="og:title" content="merge-scenes"/>
+  <meta property="og:type" content="website"/><meta property="og:title" content="remove-audio"/>
     <meta name="twitter:card" content="summary"/>
   </head>
 <body><div class="sy-head">
@@ -57,10 +57,10 @@ data-aria-dark="Switch to auto color mode">
       <div class="sy-scrollbar p-6">
         <div class="globaltoc" data-expand-depth="0"><ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="split-scenes.html">split-scenes</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">merge-scenes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="merge-scenes.html">merge-scenes</a></li>
 <li class="toctree-l1"><a class="reference internal" href="convert-depth-video.html">convert-depth-video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extract-audio.html">extract-audio</a></li>
-<li class="toctree-l1"><a class="reference internal" href="remove-audio.html">remove-audio</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">remove-audio</a></li>
 </ul>
 
         </div>
@@ -94,7 +94,7 @@ data-aria-dark="Switch to auto color mode">
         <span>/</span>
         <meta itemprop="position" content="1" />
       </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-        <strong itemprop="name">merge-scenes</strong>
+        <strong itemprop="name">remove-audio</strong>
         <meta itemprop="position" content="2" />
       </li></ol>
     <div class="xl:hidden ml-1">
@@ -107,35 +107,36 @@ data-aria-dark="Switch to auto color mode">
 </div><div class="flex flex-col break-words justify-between">
       <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
   <article class="yue" role="main">
-          <section id="merge-scenes">
-<h1>merge-scenes<a class="headerlink" href="#merge-scenes" title="Link to this heading">#</a></h1>
-<p>Concatenate clips into a single video, in the order given, without
+          <section id="remove-audio">
+<h1>remove-audio<a class="headerlink" href="#remove-audio" title="Link to this heading">#</a></h1>
+<p>Write a copy of a video with the audio track stripped, without
 re-encoding. Equivalent to:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>ffmpeg<span class="w"> </span>-f<span class="w"> </span>concat<span class="w"> </span>-safe<span class="w"> </span><span class="m">0</span><span class="w"> </span>-i<span class="w"> </span>inputs.txt<span class="w"> </span>-c<span class="w"> </span>copy<span class="w"> </span>output.mp4
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>ffmpeg<span class="w"> </span>-i<span class="w"> </span>input.mp4<span class="w"> </span>-c<span class="w"> </span>copy<span class="w"> </span>-an<span class="w"> </span>output.mp4
 </span></pre></div>
 </div>
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>vide<span class="w"> </span>merge-scenes<span class="w"> </span>CLIP...<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>vide<span class="w"> </span>remove-audio<span class="w"> </span>VIDEO<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
 </span></pre></div>
 </div>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>vide<span class="w"> </span>merge-scenes<span class="w"> </span>/tmp/clips/*.mp4<span class="w"> </span>--output<span class="w"> </span>final.mp4
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="gp">$ </span>vide<span class="w"> </span>remove-audio<span class="w"> </span>talk.mp4
+</span><span data-line="2"><span class="go">Wrote audio-free copy to talk_noaudio.mp4</span>
 </span></pre></div>
 </div>
 </section>
 <section id="options">
 <h2>Options<a class="headerlink" href="#options" title="Link to this heading">#</a></h2>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">-o,</span> <span class="pre">--output</span> <span class="pre">FILE</span></code></dt><dd><p>Path of the merged video (default: <code class="docutils literal notranslate"><span class="pre">merged.mp4</span></code>). Overwritten if it
-already exists.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">-o,</span> <span class="pre">--output</span> <span class="pre">FILE</span></code></dt><dd><p>Path of the audio-free video. Defaults to
+<code class="docutils literal notranslate"><span class="pre">./&lt;video</span> <span class="pre">name&gt;_noaudio&lt;ext&gt;</span></code>, keeping the input’s extension.
+Overwritten if it already exists.</p>
 </dd>
 </dl>
 </section>
 <section id="notes">
 <h2>Notes<a class="headerlink" href="#notes" title="Link to this heading">#</a></h2>
-<p>Because streams are copied rather than re-encoded, all clips should share
-the same codec, resolution, and framerate — which is the case for clips
-produced by <code class="docutils literal notranslate"><span class="pre">vide</span> <span class="pre">split-scenes</span></code> from the same source video.</p>
+<p>All non-audio streams (video, subtitles) are copied untouched, so the
+command is instant and lossless.</p>
 </section>
 <section id="requirements">
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">#</a></h2>
@@ -149,18 +150,10 @@ produced by <code class="docutils literal notranslate"><span class="pre">vide</s
   </svg>
   <span>Back to top</span>
 </button><div class="navigation flex print:hidden"><div class="navigation-prev">
-    <a href="split-scenes.html">
+    <a href="extract-audio.html">
       <i class="i-lucide chevron-left"></i>
       <div class="page-info">
-        <span>Previous</span><div class="title">split-scenes</div></div>
-    </a>
-  </div><div class="navigation-next">
-    <a href="convert-depth-video.html">
-      <div class="page-info">
-        <span>Next</span>
-        <div class="title">convert-depth-video</div>
-      </div>
-      <i class="i-lucide chevron-right"></i>
+        <span>Previous</span><div class="title">extract-audio</div></div>
     </a>
   </div></div></div>
     </div>
