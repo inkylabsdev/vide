@@ -51,3 +51,13 @@ don't load). Decisions:
 - Device pick follows the CUDA → MPS → CPU convention in `ARCHITECTURE.md`.
 - Depth is min-max normalized per frame before colormapping, so absolute
   depth scale is not preserved across frames.
+
+## extract-frame
+
+Input-side `-ss` seek (fast — ffmpeg jumps to the nearest keyframe instead
+of decoding from the start), `-frames:v 1`. `--time -1` can't use `-ss`
+(it doesn't seek from the end), so it uses `-sseof -1` plus image2's
+`-update 1`: decode the final second, each frame overwriting the output
+file, and the last frame is what remains. Timestamps are checked against
+the probed container duration so a past-the-end `--time` fails with a
+clear error instead of ffmpeg's "output file is empty" warning.
