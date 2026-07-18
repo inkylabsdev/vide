@@ -1,5 +1,5 @@
 [project]
-name = "vide"
+name = "vide-python"
 version = "0.1.0"
 description = "A video editing utility"
 readme = "README.md"
@@ -9,12 +9,26 @@ requires-python = ">=3.12"
 dependencies = [
     "click>=8.4.2",
     "ffmpeg-python>=0.2.0",
+    "numpy>=2.0",
+    "opencv-python>=4.10",
+    "pillow>=10.0",
     "replicate>=1.0.7",
     "scenedetect[opencv]>=0.6.4",
+    "torch>=2.4",
+    "transformers>=4.45",
 ]
 
 [project.scripts]
 vide = "vide.cli:cli"
+
+[tool.uv.sources]
+# CPU wheels on Linux (CI); the default CUDA wheels are ~2.5 GB.
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
