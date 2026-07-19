@@ -9,10 +9,11 @@ job of this repo is to not get in their way.
 ```
 vide/
 ├── cli.py       # click group + auto-registration loop (that's it)
-└── commands/    # one file per command, auto-discovered
+├── commands/    # one file per command, auto-discovered
+└── models/      # model-specific code (checkpoints, pipelines), one file per model
 ```
 
-One package, one entry point, one file per command. No `core/`, no `utils/`,
+One entry point, one file per command, one file per model. No `core/`, no `utils/`,
 no service layer. If you're looking for the abstraction, there isn't one —
 each command is a self-contained script that happens to share a `click` group.
 

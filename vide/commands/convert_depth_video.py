@@ -1,17 +1,16 @@
 """Convert a video into a colorized per-frame depth-map video.
 
-Depth is estimated per frame with a Hugging Face depth-estimation model
-(Depth Anything V2 by default). Heavy dependencies are imported lazily
-so that loading the vide CLI stays fast.
+Depth is estimated per frame with Depth Anything V2
+(`vide.models.depth_anything_v2`). Heavy dependencies are imported
+lazily so that loading the vide CLI stays fast.
 """
 
 from pathlib import Path
 
 import click
 
-# The -hf repos hold the transformers-compatible checkpoints; the plain
-# Depth-Anything-V2-* repos are raw research checkpoints without config.json.
-DEFAULT_MODEL = "depth-anything/Depth-Anything-V2-Base-hf"
+from vide import models
+from vide.models import depth_anything_v2
 
 
 @click.command("convert-depth-video")
@@ -27,7 +26,7 @@ DEFAULT_MODEL = "depth-anything/Depth-Anything-V2-Base-hf"
 )
 @click.option(
     "--model",
-    default=DEFAULT_MODEL,
+    default=depth_anything_v2.DEFAULT_MODEL,
     show_default=True,
     help="Hugging Face depth-estimation model to use.",
 )
@@ -42,23 +41,13 @@ def cli(video: Path, output: Path | None, model: str, colormap: str):
     """Estimate depth for every frame of VIDEO and write a colorized depth video."""
     import cv2
     import ffmpeg
-    import numpy as np
-    import torch
-    from PIL import Image
-    from transformers import pipeline
 
     if output is None:
         output = Path.cwd() / f"{video.stem}_depth.mp4"
 
-    device = (
-        "cuda"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-    )
+    device = models.pick_device()
     click.echo(f"Loading {model} on {device} ...")
-    depth_estimator = pipeline("depth-estimation", model=model, device=device)
+    depth_estimator = depth_anything_v2.load(model, device)
 
     cap = cv2.VideoCapture(str(video))
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -93,9 +82,9 @@ def cli(video: Path, output: Path | None, model: str, colormap: str):
         if not ret:
             break
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        depth = depth_estimator(Image.fromarray(rgb))["depth"]
+        depth = depth_anything_v2.estimate(depth_estimator, rgb)
         normalized = cv2.normalize(
-            np.array(depth), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U
+            depth, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U
         )
         encoder.stdin.write(cv2.applyColorMap(normalized, colormap_id).tobytes())
         frames += 1

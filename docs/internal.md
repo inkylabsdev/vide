@@ -41,7 +41,10 @@ Per-frame depth estimation via a `transformers` pipeline (Depth Anything V2
 `-hf` checkpoint by default — the non-`-hf` repos lack `config.json` and
 don't load). Decisions:
 
-- `torch`/`transformers`/`cv2` import inside the command function; see the
+- Model-specific code (checkpoint name, pipeline load, inference) lives in
+  `vide/models/depth_anything_v2.py`; the command keeps only video I/O and
+  colormapping.
+- `torch`/`transformers`/`cv2` import inside functions; see the
   lazy-import convention in `ARCHITECTURE.md`.
 - Linux CI installs CPU torch wheels (`tool.uv.sources` in `pyproject.toml`)
   — the default CUDA wheels are ~2.5 GB and CI has no GPU.
