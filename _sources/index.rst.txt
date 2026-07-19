@@ -18,3 +18,4 @@ Commands
    commands/convert-depth-video
    commands/extract-audio
    commands/remove-audio
+   commands/extract-frame
