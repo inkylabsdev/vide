@@ -1,7 +1,21 @@
 vide
 ====
 
-A video editing utility. Install the package and use the ``vide`` command:
+A video editing utility for humane. ffmpeg is great; ai model are beyond imagination; yet we don't have a good interface to removes the frictions away.
+
+Install the package,
+
+.. code-block:: console
+
+   $ uv tool install vide-python
+
+Or if you're a pip user,
+
+.. code-block:: console
+
+   $ pip install vide-python
+
+use the ``vide`` command:
 
 .. code-block:: console
 
