@@ -1,8 +1,8 @@
 # vide
 
 [![Tests](https://github.com/inkylabsdev/vide/actions/workflows/test.yml/badge.svg)](https://github.com/inkylabsdev/vide/actions/workflows/test.yml)
-[![PyPI](https://img.shields.io/pypi/v/vide.svg)](https://pypi.org/project/vide/)
-[![Python](https://img.shields.io/pypi/pyversions/vide.svg)](https://pypi.org/project/vide/)
+[![PyPI](https://img.shields.io/pypi/v/vide-python.svg)](https://pypi.org/project/vide-python/)
+[![Python](https://img.shields.io/pypi/pyversions/vide-python.svg)](https://pypi.org/project/vide-python/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A video editing utility for the command line. `vide` wraps
