@@ -1,8 +1,7 @@
 """Convert a video into a colorized per-frame depth-map video.
 
-Depth is estimated per frame with Depth Anything V2
-(`vide.models.depth_anything_v2`). Heavy dependencies are imported
-lazily so that loading the vide CLI stays fast.
+Depth is estimated per frame with Depth Anything V2. Heavy dependencies
+are imported lazily so that loading the vide CLI stays fast.
 """
 
 from pathlib import Path
@@ -82,7 +81,7 @@ def cli(video: Path, output: Path | None, model: str, colormap: str):
         if not ret:
             break
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        depth = depth_anything_v2.estimate(depth_estimator, rgb)
+        depth = depth_anything_v2.predict(depth_estimator, rgb)
         normalized = cv2.normalize(
             depth, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U
         )

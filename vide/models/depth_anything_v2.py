@@ -16,7 +16,7 @@ def load(model: str, device: str):
     return pipeline("depth-estimation", model=model, device=device)
 
 
-def estimate(estimator, rgb):
+def predict(estimator, rgb):
     """Estimate depth for an RGB frame array; returns a 2-D numpy array."""
     import numpy as np
     from PIL import Image
