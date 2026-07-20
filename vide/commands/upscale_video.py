@@ -92,6 +92,12 @@ def cli(
     weights_dir: Path | None,
 ):
     """Upscale VIDEO with a temporally consistent AI video super-resolution model."""
+    import os
+
+    # Reduce CUDA fragmentation OOMs on tight (e.g. 12 GB) cards. Must be set
+    # before torch initialises CUDA, hence before the import below.
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
     import cv2
     import ffmpeg
     import torch
@@ -132,9 +138,12 @@ def cli(
     pipe = flashvsr.load(MODELS[model], weights_dir, device)
 
     click.echo("Running FlashVSR ...")
+    # Keep the low-quality conditioning clip on the CPU; the streaming
+    # pipeline moves each window to the device itself, so uploading the whole
+    # clip would just waste VRAM.
     result = flashvsr.predict(
         pipe,
-        lq_video.to(device=device, dtype=torch.bfloat16),
+        lq_video.to(dtype=torch.bfloat16),
         num_frames=num_frames,
         height=target_h,
         width=target_w,

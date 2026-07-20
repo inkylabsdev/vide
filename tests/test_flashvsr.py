@@ -14,15 +14,12 @@ class FakeDenoisingModel:
         self.LQ_proj_in = None
 
 
-class FakeVAEModel:
+class FakeTCDecoder:
     def __init__(self):
-        self.encoder = "encoder"
-        self.conv1 = "conv1"
+        self.loaded_state = None
 
-
-class FakeVAE:
-    def __init__(self):
-        self.model = FakeVAEModel()
+    def load_state_dict(self, state_dict, strict=True):
+        self.loaded_state = (state_dict, strict)
 
 
 class FakePipe:
@@ -30,7 +27,7 @@ class FakePipe:
         self.manager = manager
         self.device = device
         self._denoising_model = FakeDenoisingModel()
-        self.vae = FakeVAE()
+        self.TCDecoder = None
         self.calls = {}
 
     def denoising_model(self):
@@ -42,8 +39,8 @@ class FakePipe:
     def enable_vram_management(self, num_persistent_param_in_dit):
         self.calls["vram"] = num_persistent_param_in_dit
 
-    def init_cross_kv(self):
-        self.calls["cross_kv"] = True
+    def init_cross_kv(self, context_tensor=None):
+        self.calls["cross_kv"] = context_tensor
 
     def load_models_to_device(self, names):
         self.calls["load_models_to_device"] = list(names)
@@ -65,9 +62,12 @@ class FakeModelManager:
 
 @pytest.fixture
 def fake_diffsynth(monkeypatch):
+    """Stub out the genuinely GPU/network-bound externals: the diffsynth
+    pipeline, the TCDecoder builder, and the prompt-context download. The
+    vendored LQ-projection module still runs for real."""
     pipes = []
 
-    class FakeFlashVSRFullPipeline:
+    class FakeFlashVSRTinyLongPipeline:
         @classmethod
         def from_model_manager(cls, manager, device):
             pipe = FakePipe(manager, device)
@@ -76,8 +76,17 @@ def fake_diffsynth(monkeypatch):
 
     fake_module = types.ModuleType("diffsynth")
     fake_module.ModelManager = FakeModelManager
-    fake_module.FlashVSRFullPipeline = FakeFlashVSRFullPipeline
+    fake_module.FlashVSRTinyLongPipeline = FakeFlashVSRTinyLongPipeline
     monkeypatch.setitem(sys.modules, "diffsynth", fake_module)
+
+    monkeypatch.setattr(
+        "vide.models._flashvsr_tcdecoder.build_tcdecoder",
+        lambda **kwargs: FakeTCDecoder(),
+    )
+    monkeypatch.setattr(
+        flashvsr, "_load_prompt_context",
+        lambda weights_dir, device, dtype: torch.zeros(1, 1, 1),
+    )
     return pipes
 
 
@@ -163,6 +172,62 @@ def test_build_lq_proj_output_shapes():
         assert out.shape == (1, 2, 8)
 
 
+def test_build_lq_proj_stream_forward():
+    proj = flashvsr._build_lq_proj(in_dim=3, out_dim=8, layer_num=2)
+    proj.clear_cache()
+
+    # The first streaming window only seeds the causal-conv cache.
+    assert proj.stream_forward(torch.randn(1, 3, 4, 16, 16)) is None
+    assert proj.clip_idx == 1
+
+    # Later windows emit one conditioning token list per linear layer.
+    outputs = proj.stream_forward(torch.randn(1, 3, 4, 16, 16))
+    assert len(outputs) == 2
+    for out in outputs:
+        assert out.shape[0] == 1 and out.shape[2] == 8
+
+    # clear_cache resets the streaming state so the next call seeds again.
+    proj.clear_cache()
+    assert proj.clip_idx == 0
+    assert proj.cache == {"conv1": None, "conv2": None}
+    assert proj.stream_forward(torch.randn(1, 3, 4, 16, 16)) is None
+
+
+def test_load_prompt_context_downloads_then_caches(tmp_path, monkeypatch):
+    import io
+
+    buffer = io.BytesIO()
+    torch.save(torch.zeros(1, 2, 3), buffer)
+    payload = buffer.getvalue()
+    downloads = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return payload
+
+    def fake_urlopen(url):
+        downloads.append(url)
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    ctx = flashvsr._load_prompt_context(tmp_path, "cpu", torch.float32)
+    assert ctx.shape == (1, 2, 3)
+    assert (tmp_path / flashvsr.PROMPT_CONTEXT_FILE).exists()
+    assert downloads == [flashvsr.PROMPT_CONTEXT_URL]
+
+    # Second call reuses the cached file and does not download again.
+    ctx2 = flashvsr._load_prompt_context(tmp_path, "cpu", torch.float32)
+    assert ctx2.shape == (1, 2, 3)
+    assert downloads == [flashvsr.PROMPT_CONTEXT_URL]
+
+
 # -- weight loading -----------------------------------------------------------
 
 
@@ -189,12 +254,14 @@ def test_load_without_checkpoint(fake_diffsynth, fake_snapshot_download):
 
     assert pipe is fake_diffsynth[0]
     assert pipe.calls["to"] == "cpu"
-    assert pipe.calls["vram"] is None
-    assert pipe.calls["cross_kv"] is True
+    assert pipe.calls["vram"] == flashvsr.NUM_PERSISTENT_PARAMS
+    # init_cross_kv is primed with the (stubbed) prompt-context tensor.
+    assert pipe.calls["cross_kv"] is not None
     assert pipe.calls["load_models_to_device"] == ["dit", "vae"]
-    assert pipe.vae.model.encoder is None
-    assert pipe.vae.model.conv1 is None
+    assert pipe.TCDecoder is not None
     assert pipe.denoising_model().LQ_proj_in is not None
+    # No checkpoints on disk, so the TCDecoder is left at its built weights.
+    assert pipe.TCDecoder.loaded_state is None
 
 
 def test_load_with_checkpoint(fake_diffsynth, monkeypatch, tmp_path):
@@ -202,6 +269,7 @@ def test_load_with_checkpoint(fake_diffsynth, monkeypatch, tmp_path):
     weights_dir.mkdir()
     reference = flashvsr._build_lq_proj(in_dim=3, out_dim=1536, layer_num=1)
     torch.save(reference.state_dict(), weights_dir / "LQ_proj_in.ckpt")
+    torch.save({}, weights_dir / "TCDecoder.ckpt")
 
     calls = []
 
@@ -216,6 +284,8 @@ def test_load_with_checkpoint(fake_diffsynth, monkeypatch, tmp_path):
 
     assert calls == [str(weights_dir)]
     assert pipe.denoising_model().LQ_proj_in is not None
+    # The TCDecoder checkpoint is loaded non-strictly.
+    assert pipe.TCDecoder.loaded_state == ({}, False)
 
 
 def test_predict_forwards_kwargs_and_computes_topk_ratio():

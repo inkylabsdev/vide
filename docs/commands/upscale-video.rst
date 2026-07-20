@@ -62,7 +62,8 @@ upstream DiffSynth-Studio package on PyPI) and the
 extension, both installed per the
 `FlashVSR README <https://github.com/OpenImagingLab/FlashVSR#getting-started>`_.
 Model weights (~a few GB) are downloaded from the Hugging Face Hub on first
-use.
+use, and the fixed prompt-context tensor is fetched from the FlashVSR
+GitHub repository and cached alongside them.
 
 The ``ffmpeg`` binary must be available on ``PATH``; the output is encoded
 as H.264 (``yuv420p``) so it plays in browsers as well as desktop players.
@@ -73,3 +74,18 @@ required alignment), so it won't be an exact multiple of the input
 resolution.
 
 A clip needs at least 5 frames to upscale.
+
+Memory and resolution
+---------------------
+
+The command uses FlashVSR's streaming "tiny-long" pipeline, which denoises
+the clip in short windows and decodes each with a lightweight TCDecoder, so
+clip *length* is not bounded by VRAM. The *output resolution* is, though:
+attention activations scale with frame area. On a 12 GB card the practical
+ceiling is roughly 768x1280 (FlashVSR's training resolution). Since the
+output is ``--scale`` times the input, that means a source of about 192x320
+for the default 4x upscale.
+
+The intended workflow is therefore to *downscale first, then upscale* -- for
+example downscale a 1080x1920 clip to 480p-class dimensions and run 4x to
+restore detail. Larger outputs need a larger GPU.

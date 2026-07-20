@@ -1,16 +1,28 @@
 """FlashVSR: real-time diffusion video super-resolution.
 
 FlashVSR (https://github.com/OpenImagingLab/FlashVSR) ships as a fork of
-the `diffsynth` package plus a small LQ-projection module that the
-upstream repo keeps in its example scripts rather than in the installable
-package. That module is vendored below (`_build_lq_proj`, adapted from
-`examples/WanVSR/utils/utils.py`, Apache-2.0) since it isn't importable
-any other way; everything else (the diffusion transformer, VAE, and
+the `diffsynth` package plus two small modules the upstream repo keeps in
+its example scripts rather than in the installable package: an
+LQ-projection module and the streaming TCDecoder. Both are vendored here
+(`_build_lq_proj`, adapted from `examples/WanVSR/utils/utils.py`, and
+`vide.models._flashvsr_tcdecoder`, adapted from
+`examples/WanVSR/utils/TCDecoder.py`, both Apache-2.0) since they aren't
+importable any other way; everything else (the diffusion transformer and
 sparse attention) comes from `diffsynth` itself, which must be installed
 per the FlashVSR README (clone the repo, `pip install -e .`, plus the
 Block-Sparse-Attention CUDA extension) and is only ever imported lazily,
 so loading the vide CLI stays fast and this module stays importable
 without it.
+
+We use FlashVSR's "tiny-long" streaming pipeline
+(`FlashVSRTinyLongPipeline`): it denoises the clip in short windows and
+decodes each window incrementally with the lightweight TCDecoder (moving
+finished frames to CPU as it goes), so an arbitrarily long video runs in
+bounded VRAM. The alternative "full" pipeline decodes the whole clip at
+once through the Wan2.1 VAE, which does not fit a long clip on a consumer
+GPU. On a 12 GB card the practical output ceiling is roughly 768x1280
+(FlashVSR's training resolution); for a 4x upscale that means a source of
+about 192x320, i.e. downscale first, then upscale.
 """
 
 from pathlib import Path
@@ -18,8 +30,17 @@ from pathlib import Path
 DEFAULT_MODEL = "JunhaoZhuang/FlashVSR"
 WEIGHT_FILES = (
     "diffusion_pytorch_model_streaming_dmd.safetensors",
-    "Wan2.1_VAE.pth",
     "LQ_proj_in.ckpt",
+    "TCDecoder.ckpt",
+)
+
+# The fixed empty-prompt text-encoder context FlashVSR conditions on. It ships
+# in the GitHub repo's example assets rather than the Hugging Face weights, so
+# it's fetched from there and cached alongside the downloaded weights.
+PROMPT_CONTEXT_FILE = "posi_prompt.pth"
+PROMPT_CONTEXT_URL = (
+    "https://raw.githubusercontent.com/OpenImagingLab/FlashVSR/main/"
+    "examples/WanVSR/prompt_tensor/posi_prompt.pth"
 )
 
 # FlashVSR is trained for 4x super-resolution and aligns output dimensions
@@ -187,9 +208,25 @@ def _build_lq_proj(in_dim: int, out_dim: int, layer_num: int):
             self.linear_layers = nn.ModuleList(
                 nn.Linear(3072, out_dim) for _ in range(layer_num)
             )
+            self.clear_cache()
+
+        def clear_cache(self):
+            """Reset the causal-conv cache and window counter between videos."""
+            self.cache = {"conv1": None, "conv2": None}
+            self.clip_idx = 0
+
+        @staticmethod
+        def _tokens(x):
+            # (B, C, F, H, W) -> (B, F*H*W, C)
+            return x.permute(0, 2, 3, 4, 1).reshape(x.shape[0], -1, x.shape[1])
+
+        def _project(self, x):
+            tokens = self._tokens(x)
+            return [layer(tokens) for layer in self.linear_layers]
 
         def forward(self, video):
-            cache = {"conv1": None, "conv2": None}
+            """Project a whole clip at once (non-streaming)."""
+            self.clear_cache()
             t = video.shape[2]
             iterations = 1 + (t - 1) // 4
             first_frame = video[:, :, :1, :, :].repeat(1, 1, 3, 1, 1)
@@ -198,19 +235,37 @@ def _build_lq_proj(in_dim: int, out_dim: int, layer_num: int):
             chunks = []
             for i in range(iterations):
                 x = self.pixel_shuffle(video[:, :, i * 4 : (i + 1) * 4, :, :])
-                cache["conv1"] = x[:, :, -cache_span:, :, :].clone()
-                x = self.act1(self.norm1(self.conv1(x, cache["conv1"])))
-                cache["conv2"] = x[:, :, -cache_span:, :, :].clone()
+                self.cache["conv1"] = x[:, :, -cache_span:, :, :].clone()
+                x = self.act1(self.norm1(self.conv1(x, self.cache["conv1"])))
+                self.cache["conv2"] = x[:, :, -cache_span:, :, :].clone()
                 if i == 0:
                     # The first chunk only seeds the causal-conv cache; it
                     # doesn't produce an output token of its own.
                     continue
-                x = self.act2(self.norm2(self.conv2(x, cache["conv2"])))
+                x = self.act2(self.norm2(self.conv2(x, self.cache["conv2"])))
                 chunks.append(x)
 
-            out = torch.cat(chunks, dim=2)
-            out = out.permute(0, 2, 3, 4, 1).reshape(out.shape[0], -1, out.shape[1])
-            return [layer(out) for layer in self.linear_layers]
+            return self._project(torch.cat(chunks, dim=2))
+
+        def stream_forward(self, video_clip):
+            """Project one streaming window, carrying the causal-conv cache
+            across calls. The first window only seeds that cache and returns
+            ``None``; later windows return a per-layer list of conditioning
+            tokens. This is what FlashVSR's streaming pipelines actually
+            call (`forward` is the equivalent whole-clip path)."""
+            if self.clip_idx == 0:
+                first_frame = video_clip[:, :, :1, :, :].repeat(1, 1, 3, 1, 1)
+                video_clip = torch.cat([first_frame, video_clip], dim=2)
+            x = self.pixel_shuffle(video_clip)
+            self.cache["conv1"] = x[:, :, -cache_span:, :, :].clone()
+            x = self.act1(self.norm1(self.conv1(x, self.cache["conv1"])))
+            self.cache["conv2"] = x[:, :, -cache_span:, :, :].clone()
+            if self.clip_idx == 0:
+                self.clip_idx += 1
+                return None
+            x = self.act2(self.norm2(self.conv2(x, self.cache["conv2"])))
+            self.clip_idx += 1
+            return self._project(x)
 
     return _LQProj(in_dim, out_dim, layer_num)
 
@@ -229,43 +284,74 @@ def download_weights(repo_id: str, weights_dir: Path | None = None) -> Path:
     )
 
 
-def load(repo_id: str, weights_dir: Path | None, device: str):
-    """Load the FlashVSR full pipeline for `repo_id` onto `device`.
+# TCDecoder is built wider than its default and takes the concatenated
+# latent + space-to-depth LQ conditioning as input channels (16 + 768).
+TCDECODER_CHANNELS = (512, 256, 128, 128)
+TCDECODER_LATENT_CHANNELS = 16 + 768
+# Number of DiT parameters kept resident on the GPU; 0 streams them from CPU
+# per forward pass, trading speed for the VRAM headroom a 12 GB card needs.
+NUM_PERSISTENT_PARAMS = 0
 
-    Mirrors `init_pipeline()` in FlashVSR's `infer_flashvsr_full.py`:
-    load the DiT/VAE weights through `diffsynth.ModelManager`, attach and
-    load the LQ-projection module, then move everything to `device` and
-    prime cross-attention KV caches.
+
+def _load_prompt_context(weights_dir: Path, device: str, dtype):
+    """Return FlashVSR's fixed prompt-context tensor, downloading and caching
+    it under `weights_dir` on first use."""
+    import torch
+
+    path = weights_dir / PROMPT_CONTEXT_FILE
+    if not path.exists():
+        from urllib.request import urlopen
+
+        with urlopen(PROMPT_CONTEXT_URL) as response:
+            path.write_bytes(response.read())
+    return torch.load(path, map_location="cpu").to(device=device, dtype=dtype)
+
+
+def load(repo_id: str, weights_dir: Path | None, device: str):
+    """Load the FlashVSR tiny-long streaming pipeline for `repo_id` onto
+    `device`.
+
+    Mirrors `init_pipeline()` in FlashVSR's
+    `infer_flashvsr_tiny_long_video.py`: load the DiT weights through
+    `diffsynth.ModelManager`, attach the vendored LQ-projection module and
+    TCDecoder, then move everything to `device`, offload DiT params, and
+    prime cross-attention KV caches. The Wan VAE is not loaded: this
+    pipeline decodes with the TCDecoder instead.
     """
     import torch
-    from diffsynth import FlashVSRFullPipeline, ModelManager
+    from diffsynth import FlashVSRTinyLongPipeline, ModelManager
+
+    from vide.models._flashvsr_tcdecoder import build_tcdecoder
 
     dtype = torch.bfloat16
     weights = download_weights(repo_id, weights_dir)
 
     manager = ModelManager(torch_dtype=dtype, device="cpu")
     manager.load_models(
-        [
-            str(weights / "diffusion_pytorch_model_streaming_dmd.safetensors"),
-            str(weights / "Wan2.1_VAE.pth"),
-        ]
+        [str(weights / "diffusion_pytorch_model_streaming_dmd.safetensors")]
     )
-    pipe = FlashVSRFullPipeline.from_model_manager(manager, device=device)
+    pipe = FlashVSRTinyLongPipeline.from_model_manager(manager, device=device)
 
     lq_proj = _build_lq_proj(in_dim=3, out_dim=1536, layer_num=1).to(device, dtype=dtype)
-    checkpoint = weights / "LQ_proj_in.ckpt"
-    if checkpoint.exists():
-        lq_proj.load_state_dict(torch.load(checkpoint, map_location="cpu"), strict=True)
+    lq_ckpt = weights / "LQ_proj_in.ckpt"
+    if lq_ckpt.exists():
+        lq_proj.load_state_dict(torch.load(lq_ckpt, map_location="cpu"), strict=True)
     pipe.denoising_model().LQ_proj_in = lq_proj
 
-    # The full pipeline conditions on pixel-space LQ frames instead of the
-    # VAE's own encoder, so upstream drops it to save memory.
-    pipe.vae.model.encoder = None
-    pipe.vae.model.conv1 = None
+    tcdecoder = build_tcdecoder(
+        new_channels=TCDECODER_CHANNELS,
+        device=device,
+        dtype=dtype,
+        new_latent_channels=TCDECODER_LATENT_CHANNELS,
+    )
+    tc_ckpt = weights / "TCDecoder.ckpt"
+    if tc_ckpt.exists():
+        tcdecoder.load_state_dict(torch.load(tc_ckpt, map_location="cpu"), strict=False)
+    pipe.TCDecoder = tcdecoder
 
     pipe.to(device)
-    pipe.enable_vram_management(num_persistent_param_in_dit=None)
-    pipe.init_cross_kv()
+    pipe.enable_vram_management(num_persistent_param_in_dit=NUM_PERSISTENT_PARAMS)
+    pipe.init_cross_kv(context_tensor=_load_prompt_context(weights, device, dtype))
     pipe.load_models_to_device(["dit", "vae"])
     return pipe
 

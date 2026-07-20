@@ -54,23 +54,12 @@ class FakeDenoisingModel:
         self.LQ_proj_in = None
 
 
-class FakeVAEModel:
-    def __init__(self):
-        self.encoder = "encoder"
-        self.conv1 = "conv1"
-
-
-class FakeVAE:
-    def __init__(self):
-        self.model = FakeVAEModel()
-
-
 class FakePipe:
     def __init__(self, manager, device):
         self.manager = manager
         self.device = device
         self._denoising_model = FakeDenoisingModel()
-        self.vae = FakeVAE()
+        self.TCDecoder = None
         self.calls = {}
 
     def denoising_model(self):
@@ -82,8 +71,8 @@ class FakePipe:
     def enable_vram_management(self, num_persistent_param_in_dit):
         self.calls["vram"] = num_persistent_param_in_dit
 
-    def init_cross_kv(self):
-        self.calls["cross_kv"] = True
+    def init_cross_kv(self, context_tensor=None):
+        self.calls["cross_kv"] = context_tensor
 
     def load_models_to_device(self, names):
         self.calls["load_models_to_device"] = list(names)
@@ -107,7 +96,7 @@ class FakeModelManager:
 def fake_diffsynth(monkeypatch):
     pipes = []
 
-    class FakeFlashVSRFullPipeline:
+    class FakeFlashVSRTinyLongPipeline:
         @classmethod
         def from_model_manager(cls, manager, device):
             pipe = FakePipe(manager, device)
@@ -116,8 +105,17 @@ def fake_diffsynth(monkeypatch):
 
     fake_module = types.ModuleType("diffsynth")
     fake_module.ModelManager = FakeModelManager
-    fake_module.FlashVSRFullPipeline = FakeFlashVSRFullPipeline
+    fake_module.FlashVSRTinyLongPipeline = FakeFlashVSRTinyLongPipeline
     monkeypatch.setitem(sys.modules, "diffsynth", fake_module)
+
+    monkeypatch.setattr(
+        "vide.models._flashvsr_tcdecoder.build_tcdecoder",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        flashvsr, "_load_prompt_context",
+        lambda weights_dir, device, dtype: torch.zeros(1, 1, 1),
+    )
     return pipes
 
 
