@@ -1,10 +1,13 @@
-.PHONY: sphinx test build publish clean
+.PHONY: sphinx test lint build publish clean
 
 sphinx:
 	uv run sphinx-build -b html docs docs/_build/html
 
 test:
 	uv run pytest
+
+lint:
+	uv run ruff check .
 
 build: clean
 	uv build
