@@ -61,13 +61,15 @@ Whole-video 4x super-resolution via FlashVSR
 (https://github.com/OpenImagingLab/FlashVSR), a one-step diffusion VSR
 model. Decisions:
 
-- Model and command deliberately share one file
-  (`vide/commands/upscale_video.py`), unlike `convert-depth-video`'s
-  model/command split, per explicit instruction for this command. FlashVSR
-  has no `transformers.pipeline`-style entry point to wrap: it ships as a
-  fork of the `diffsynth` package plus a small LQ-projection module the
-  upstream repo keeps in its example scripts (`utils/utils.py`) rather than
-  the installable package. That module is vendored here
+- Model-specific code (weight download, pipeline load, inference, and the
+  FlashVSR-specific frame prep/postprocess) lives in
+  `vide/models/flashvsr.py`, same split as `convert-depth-video` /
+  `depth_anything_v2.py`; the command keeps only video I/O, ffmpeg
+  encoding, and option wiring. FlashVSR has no `transformers.pipeline`-
+  style entry point to wrap: it ships as a fork of the `diffsynth` package
+  plus a small LQ-projection module the upstream repo keeps in its example
+  scripts (`utils/utils.py`) rather than the installable package. That
+  module is vendored in `flashvsr.py`
   (`_build_lq_proj`, adapted from `Buffer_LQ4x_Proj`, Apache-2.0) since it
   isn't importable any other way; everything else (DiT, VAE, sparse
   attention) comes from `diffsynth` itself, imported lazily and never
@@ -75,8 +77,8 @@ model. Decisions:
 - `diffsynth` is not a `vide` dependency and is not on PyPI under that
   name with FlashVSR's pipelines included — it must be installed from the
   FlashVSR repo per its README (also needs the Block-Sparse-Attention CUDA
-  extension). `load()`/`predict()` assume it's importable; there is no
-  fallback.
+  extension). `flashvsr.load()`/`flashvsr.predict()` assume it's
+  importable; there is no fallback.
 - No `--device` flag, per `ARCHITECTURE.md`'s CUDA → MPS → CPU convention
   — `models.pick_device()` picks automatically. In practice FlashVSR's
   sparse-attention kernels are CUDA-only, so non-CUDA devices will fail
@@ -91,11 +93,18 @@ model. Decisions:
   frames that truncation collapses to a single chunk with nothing to
   output, so `cli()` rejects short clips with a clear error instead of a
   cryptic `torch.cat` failure inside `_build_lq_proj`.
-- Tests mock the `diffsynth` module (inserted into `sys.modules`, same
-  idiom as `convert-depth-video`'s `transformers.pipeline` mock) and
-  `huggingface_hub.snapshot_download`; the vendored `_build_lq_proj` and
-  the tensor prep/postprocess helpers run for real on CPU since they're
-  plain PyTorch — no CUDA or `diffsynth` needed to verify their math.
+- `vide/commands/upscale_video.py`'s `MODELS` dict maps the CLI's
+  `--model` choice to a model module's default weights repo id — routing
+  for a second model architecture later, without a class hierarchy for a
+  set of one.
+- Tests split the same way as the source: `tests/test_flashvsr.py` covers
+  the model module directly (pure tensor-prep/postprocess helpers and the
+  vendored `_build_lq_proj` run for real on CPU — no CUDA or `diffsynth`
+  needed to verify their math; `load()`/`predict()` mock the `diffsynth`
+  module via `sys.modules`, same idiom as `convert-depth-video`'s
+  `transformers.pipeline` mock, plus `huggingface_hub.snapshot_download`).
+  `tests/test_upscale_video.py` covers the CLI only, reusing the same
+  mocking fixtures.
 - `encoder.stdin.write` is wrapped in `try/except BrokenPipeError`: when
   ffmpeg exits early (e.g. an unwritable output path), the pipe can break
   mid-write depending on frame-count/buffering timing, and `encoder.wait()`
