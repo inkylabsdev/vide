@@ -30,6 +30,7 @@ Commands
    commands/split-scenes
    commands/merge-scenes
    commands/convert-depth-video
+   commands/upscale-video
    commands/extract-audio
    commands/remove-audio
    commands/extract-frame

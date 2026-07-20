@@ -1416,6 +1416,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "ffmpeg-python" },
+    { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "pillow" },
@@ -1440,6 +1441,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.4.2" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
+    { name = "huggingface-hub", specifier = ">=0.25" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-python", specifier = ">=4.10" },
     { name = "pillow", specifier = ">=10.0" },

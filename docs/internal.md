@@ -55,6 +55,52 @@ don't load). Decisions:
 - Depth is min-max normalized per frame before colormapping, so absolute
   depth scale is not preserved across frames.
 
+## upscale-video
+
+Whole-video 4x super-resolution via FlashVSR
+(https://github.com/OpenImagingLab/FlashVSR), a one-step diffusion VSR
+model. Decisions:
+
+- Model and command deliberately share one file
+  (`vide/commands/upscale_video.py`), unlike `convert-depth-video`'s
+  model/command split, per explicit instruction for this command. FlashVSR
+  has no `transformers.pipeline`-style entry point to wrap: it ships as a
+  fork of the `diffsynth` package plus a small LQ-projection module the
+  upstream repo keeps in its example scripts (`utils/utils.py`) rather than
+  the installable package. That module is vendored here
+  (`_build_lq_proj`, adapted from `Buffer_LQ4x_Proj`, Apache-2.0) since it
+  isn't importable any other way; everything else (DiT, VAE, sparse
+  attention) comes from `diffsynth` itself, imported lazily and never
+  vendored.
+- `diffsynth` is not a `vide` dependency and is not on PyPI under that
+  name with FlashVSR's pipelines included — it must be installed from the
+  FlashVSR repo per its README (also needs the Block-Sparse-Attention CUDA
+  extension). `load()`/`predict()` assume it's importable; there is no
+  fallback.
+- No `--device` flag, per `ARCHITECTURE.md`'s CUDA → MPS → CPU convention
+  — `models.pick_device()` picks automatically. In practice FlashVSR's
+  sparse-attention kernels are CUDA-only, so non-CUDA devices will fail
+  inside `diffsynth`, not in this file; that's called out in the command's
+  docs rather than special-cased in code.
+- Whole video is processed in one pipeline call (no long-video streaming
+  window), matching upstream's basic `infer_flashvsr_full.py` example
+  rather than its `_long_video` variant.
+- Frame prep mirrors upstream's `prepare_input_tensor`: bicubic upscale by
+  `--scale`, center-crop to a multiple of 128, repeat the last frame 4x,
+  then truncate to the largest valid `8k+1` clip length. Below 5 source
+  frames that truncation collapses to a single chunk with nothing to
+  output, so `cli()` rejects short clips with a clear error instead of a
+  cryptic `torch.cat` failure inside `_build_lq_proj`.
+- Tests mock the `diffsynth` module (inserted into `sys.modules`, same
+  idiom as `convert-depth-video`'s `transformers.pipeline` mock) and
+  `huggingface_hub.snapshot_download`; the vendored `_build_lq_proj` and
+  the tensor prep/postprocess helpers run for real on CPU since they're
+  plain PyTorch — no CUDA or `diffsynth` needed to verify their math.
+- `encoder.stdin.write` is wrapped in `try/except BrokenPipeError`: when
+  ffmpeg exits early (e.g. an unwritable output path), the pipe can break
+  mid-write depending on frame-count/buffering timing, and `encoder.wait()`
+  right after already reports the real failure.
+
 ## extract-frame
 
 Input-side `-ss` seek (fast — ffmpeg jumps to the nearest keyframe instead
