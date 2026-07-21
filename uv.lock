@@ -817,6 +817,14 @@ wheels = [
 ]
 
 [[package]]
+name = "pysbd"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/0a/c99fb7d7e176f8b176ef19704a32e6a9c6aafdf19ef75a187f701fc15801/pysbd-0.3.4-py3-none-any.whl", hash = "sha256:cd838939b7b0b185fcf86b0baf6636667dfb6e474743beeff878e9f42e022953", size = 71082, upload-time = "2021-02-11T16:36:33.351Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1419,6 +1427,7 @@ dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "pillow" },
+    { name = "pysbd" },
     { name = "replicate" },
     { name = "scenedetect" },
     { name = "torch", version = "2.13.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
@@ -1443,6 +1452,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-python", specifier = ">=4.10" },
     { name = "pillow", specifier = ">=10.0" },
+    { name = "pysbd", specifier = ">=0.3.4" },
     { name = "replicate", specifier = ">=1.0.7" },
     { name = "scenedetect", extras = ["opencv"], specifier = ">=0.6.4" },
     { name = "torch", marker = "sys_platform != 'linux'", specifier = ">=2.4" },

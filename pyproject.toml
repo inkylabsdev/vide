@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2.0",
     "opencv-python>=4.10",
     "pillow>=10.0",
+    "pysbd>=0.3.4",
     "replicate>=1.0.7",
     "scenedetect[opencv]>=0.6.4",
     "torch>=2.4",
