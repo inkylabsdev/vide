@@ -55,6 +55,23 @@ don't load). Decisions:
 - Depth is min-max normalized per frame before colormapping, so absolute
   depth scale is not preserved across frames.
 
+## upscale-video
+
+Frame-by-frame super-resolution via Replicate. Decisions:
+
+- Two models are supported: `real-esrgan` (default) and `anime4k`. Each lives
+  in its own `vide/models/` module so the dispatch in the command is a simple
+  `if/else` import; adding a third model means adding one file and one branch.
+- The first frame is decoded, upscaled, and decoded again *before* the ffmpeg
+  encoder is started, so the output dimensions are known in advance. The
+  `VideoCapture` is then rewound to frame 0 before the main loop.
+- Heavy deps (`cv2`, `numpy`, `ffmpeg`, `replicate`) are imported lazily
+  inside the command function; see the lazy-import convention in
+  `ARCHITECTURE.md`.
+- Output is H.264/yuv420p with `+faststart`, same as `convert-depth-video`.
+- Replicate returns a `FileOutput`-like object; `.read()` gives raw image
+  bytes.  The fake in tests returns a `io.BytesIO` with the same interface.
+
 ## extract-frame
 
 Input-side `-ss` seek (fast — ffmpeg jumps to the nearest keyframe instead
