@@ -13,5 +13,5 @@
 - [ ] watermark: overlay an image or text at a corner with opacity.
 - [ ] burn-subtitles: hard-render a subtitle file onto the video.
 - [ ] transcribe: speech-to-text a video's audio into an .srt (Whisper-class model, auto device).
-- [ ] upscale: super-resolution upscale via an ML model (auto device).
+- [x] upscale: super-resolution upscale via an ML model (Replicate — Real-ESRGAN or Anime4K).
 - [ ] interpolate-frames: raise fps with ML frame interpolation (auto device).
