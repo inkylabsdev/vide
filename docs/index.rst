@@ -33,3 +33,4 @@ Commands
    commands/extract-audio
    commands/remove-audio
    commands/extract-frame
+   commands/animate-avatar
