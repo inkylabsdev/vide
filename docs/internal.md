@@ -81,3 +81,10 @@ of decoding from the start), `-frames:v 1`. `--time -1` can't use `-ss`
 file, and the last frame is what remains. Timestamps are checked against
 the probed container duration so a past-the-end `--time` fails with a
 clear error instead of ffmpeg's "output file is empty" warning.
+
+## animate-avatar
+
+Lightweight by design: the command only posts image/audio inputs to a running
+local Cog HTTP server and writes back the returned video bytes/URL output. It
+does not run model inference itself. The bundled Cog package lives at
+`models/longcat-video-avatar-1.5` and is meant to be served with `cog serve`.

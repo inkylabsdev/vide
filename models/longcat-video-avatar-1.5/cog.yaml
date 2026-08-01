@@ -1,0 +1,5 @@
+build:
+  python_version: "3.12"
+  system_packages:
+    - "ffmpeg"
+predict: "predict.py:Predictor"

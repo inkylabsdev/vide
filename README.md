@@ -60,7 +60,8 @@ same source.
 
 ### Animate an avatar from image + audio
 
-Runs a local [Cog](https://cog.run/) package for LongCat Video Avatar 1.5:
+Uses a lightweight CLI request to a running local [Cog](https://cog.run/)
+server for LongCat Video Avatar 1.5:
 
 ```console
 $ vide animate-avatar avatar.png speech.wav --output avatar.mp4
@@ -70,10 +71,12 @@ $ vide animate-avatar avatar.png speech.wav --output avatar.mp4
 | --- | --- |
 | `-o, --output FILE` | Output path (default `./<audio name>_avatar.mp4`). |
 | `--model [longcat-avatar]` | Avatar model selector (default `longcat-avatar`). |
+| `--server-url TEXT` | Cog server URL (default `http://127.0.0.1:5000`). |
+| `--timeout INTEGER` | Seconds to wait for prediction (default `600`). |
 
 Requirements:
 
-- `cog` installed on your `PATH`
+- `cog serve` running from `models/longcat-video-avatar-1.5`
 - local model package at `models/longcat-video-avatar-1.5` (Cog package for [meituan-longcat/LongCat-Video-Avatar-1.5](https://huggingface.co/meituan-longcat/LongCat-Video-Avatar-1.5))
 
 ## Documentation
